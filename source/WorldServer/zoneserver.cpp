@@ -1080,10 +1080,15 @@ void ZoneServer::CheckSendSpawnToClient(Client* client, bool initial_login) {
 		for(itr = closest_spawns.begin(); itr != closest_spawns.end(); itr++) {
 			for(spawn_iter2 = itr->second->begin(); spawn_iter2 != itr->second->end(); spawn_iter2++) {
 				spawn = *spawn_iter2;
-				client->GetPlayer()->ClearRemovedSpawn(spawn);
-				SendSpawn(spawn, client);
-				if(client->ShouldTarget() && client->GetCombineSpawn() == spawn)
-					client->TargetSpawn(spawn);
+
+				if (spawn) {
+					client->GetPlayer()->ClearRemovedSpawn(spawn);
+
+					SendSpawn(spawn, client);
+
+					if (client->ShouldTarget() && client->GetCombineSpawn() == spawn)
+						client->TargetSpawn(spawn);
+				}
 			}
 			delete itr->second;
 		}
@@ -3035,6 +3040,9 @@ void ZoneServer::UpdateVitality(float amount){
 }
 
 void ZoneServer::SendSpawn(Spawn* spawn, Client* client){
+	if (!spawn)
+		return;
+
 	EQ2Packet* outapp = spawn->serialize(client->GetPlayer(), client->GetVersion());
 
 	if(outapp)

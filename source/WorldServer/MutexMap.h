@@ -19,6 +19,7 @@
 */
 #ifndef MUTEXMAP_H
 #define MUTEXMAP_H
+#include <mutex>
 #include <map>
 #include "MutexHelper.h"
 
@@ -53,10 +54,10 @@ public:
 			}
 			iterator(MutexMap* map){				
 				this->map = map;
-				map->update();
+				//map->update();
 				map->SetChanging();
-				this->map->AddAccess();
-				map->SetNotChanging();
+				//this->map->AddAccess();
+				//map->SetNotChanging();
 				first_itr = true;
 				itr = map->current_data.begin();
 				if(itr != map->current_data.end()){
@@ -65,7 +66,8 @@ public:
 				}
 			}		
 			~iterator(){
-				map->RemoveAccess();
+				map->SetNotChanging();
+				//map->RemoveAccess();
 			}
 
 			bool HasNext(){
@@ -73,8 +75,8 @@ public:
 			}
 
 			bool Next(){
-				if(map->pending_clear)
-					return false;
+				/*if(map->pending_clear)
+					return false;*/
 				if(first_itr)
 					first_itr = false;
 				else
@@ -82,12 +84,12 @@ public:
 				if(itr != map->current_data.end()){
 					first = itr->first;
 					second = itr->second;
-					map->PendingLock.lock();
+					/*map->PendingLock.lock();
 					if(map->pending_remove.count(first) > 0){
 						map->PendingLock.unlock();
 						return Next();
 					}
-					map->PendingLock.unlock();
+					map->PendingLock.unlock();*/
 					return true;
 				}
 				return false;
@@ -99,7 +101,11 @@ public:
 			ValueT second;			
     };
 	int count(KeyT key, bool include_pending = false){
-		while(changing){
+		std::lock_guard<std::mutex> lock(ChangingLock);
+
+		return current_data.count(key);
+
+		/*while(changing){
 			Sleep(1);
 		}
 		AddAccess();
@@ -110,10 +116,13 @@ public:
 			PendingLock.unlock();
 		}
 		RemoveAccess();
-		return ret;
+		return ret;*/
 	}
 	void clear(bool delete_all = false){
-		pending_clear = true;
+		std::lock_guard<std::mutex> lock(ChangingLock);
+		current_data.clear();
+
+		/*pending_clear = true;
 		if(delete_all){
 			SetChanging();
 			while(access_count > 0){
@@ -129,11 +138,13 @@ public:
 			RemoveAccess();
 			SetNotChanging();
 		}
-		update();
+		update();*/
 	}
 	unsigned int size(bool include_pending = false){
-		if(include_pending)
-			return current_data.size() + pending_add.size();
+		std::lock_guard<std::mutex> lock(ChangingLock);
+
+		/*if(include_pending)
+			return current_data.size() + pending_add.size();*/
 		return current_data.size();
 	}
 	void deleteData(KeyT key, int8 type, int32 erase_time = 0){
@@ -143,7 +154,10 @@ public:
 		has_pending_deletes = true;
 	}
 	void erase(KeyT key, bool erase_key = false, bool erase_value = false, int32 erase_time = 0){
-		while(changing){
+		std::lock_guard<std::mutex> lock(ChangingLock);
+		current_data.erase(key);
+
+		/*while(changing){
 			Sleep(1);
 		}
 		AddAccess();
@@ -162,13 +176,16 @@ public:
 			PendingLock.unlock();
 		}
 		RemoveAccess();
-		update();
+		update();*/
 	}
 	iterator begin(){
 		return iterator(this); 
 	}
 	void Put(KeyT key, ValueT value){
-		while(changing){
+		std::lock_guard<std::mutex> lock(ChangingLock);
+		current_data[key] = value;
+
+		/*while(changing){
 			Sleep(1);
 		}
 		AddAccess();
@@ -177,10 +194,13 @@ public:
 		has_pending_data = true;
 		PendingLock.unlock();
 		RemoveAccess();
-		update();
+		update();*/
 	}
 	ValueT& Get(KeyT key){
-		while(changing){
+		std::lock_guard<std::mutex> lock(ChangingLock);
+		return current_data[key];
+
+		/*while(changing){
 			Sleep(1);
 		}
 		AddAccess();
@@ -189,7 +209,7 @@ public:
 			return current_data[key];
 		}
 		RemoveAccess();
-		return pending_add[key];
+		return pending_add[key];*/
 	}
 private:
 	void AddAccess(){
@@ -206,11 +226,11 @@ private:
 
 	void SetChanging(){		
 		ChangingLock.lock();
-		changing = true;
+		/*changing = true;*/
 	}
 
 	void SetNotChanging(){
-		changing = false;
+		/*changing = false;*/
 		ChangingLock.unlock();
 	}
 
@@ -285,9 +305,9 @@ private:
 			has_pending_deletes = (pending_deletes.size() > 0);
 		}
 	}
-	Locker PendingLock;
-	Locker AccessLock;
-	Locker ChangingLock;
+	std::mutex PendingLock;
+	std::mutex AccessLock;
+	std::mutex ChangingLock;
 	std::map<KeyT, ValueT> current_data;
 	std::map<KeyT, ValueT> pending_add;
 	std::map<DeleteData<KeyT, ValueT>*, bool > pending_deletes;
