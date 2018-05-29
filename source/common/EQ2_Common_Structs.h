@@ -149,6 +149,7 @@ struct PositionData{
 	float			SpeedX;
 	float			SpeedY;
 	float			SpeedZ;
+	float			SideSpeed;
 	int16			collision_radius;
 	int16			state;
 };

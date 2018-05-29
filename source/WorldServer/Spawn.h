@@ -325,10 +325,13 @@ public:
 		SetPos(&appearance.pos.SpeedX, speed_x, updateFlags);
 	}
 	void SetSpeedY(float speed_y, bool updateFlags = true) {
-		SetPos(&appearance.pos.SpeedX, speed_y, updateFlags);
+		SetPos(&appearance.pos.SpeedY, speed_y, updateFlags);
 	}
 	void SetSpeedZ(float speed_z, bool updateFlags = true) {
-		SetPos(&appearance.pos.SpeedX, speed_z, updateFlags);
+		SetPos(&appearance.pos.SpeedZ, speed_z, updateFlags);
+	}
+	void SetSideSpeed(float side_speed, bool updateFlags = true) {
+		SetPos(&appearance.pos.SideSpeed, side_speed, updateFlags);
 	}
 	void SetX(float x, bool updateFlags = true){ 
 		SetPos(&appearance.pos.X, x, updateFlags); 
@@ -555,6 +558,9 @@ public:
 	}
 	float GetSpeedZ() {
 		return appearance.pos.SpeedZ;
+	}
+	float GetSideSpeed() {
+		return appearance.pos.SideSpeed;
 	}
 	float GetDestinationY(){
 		return appearance.pos.Y2;
