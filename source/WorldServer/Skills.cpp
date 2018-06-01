@@ -57,7 +57,7 @@ Skill::Skill(Skill* skill){
 	short_name = skill->short_name;
 	name = skill->name;
 	description = skill->description;
-	save_needed = false;
+	save_needed = skill->save_needed;
 }
 
 map<int32, Skill*>* MasterSkillList::GetAllSkills(){

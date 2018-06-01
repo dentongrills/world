@@ -1688,28 +1688,6 @@ void ZoneServer::AddSpawnExpireTimer(Spawn* spawn, int32 expire_time, int32 expi
 	}
 }
 
-void ZoneServer::SaveClient(Client* client){
-	client->Save();
-}
-
-void ZoneServer::SaveClients(){
-	vector<thread> workers;
-
-	MClientList.readlock(__FUNCTION__, __LINE__);
-	for (auto client : clients) {
-		if(client->IsConnected()){
-			workers.push_back(thread([&]() {
-				SaveClient(client);
-			}));
-		}
-	}
-
-	for_each(workers.begin(), workers.end(), [](thread &t) {
-		t.join();
-	});
-	MClientList.releasereadlock(__FUNCTION__, __LINE__);
-}
-
 void ZoneServer::SendSpawnVisualState(Spawn* spawn, int16 type){
 	if(!spawn)
 		return;
@@ -2862,7 +2840,7 @@ void ZoneServer::RemoveClient(Client* client)
 				((Bot*)spawn)->Camp();
 		}
 
-		connected_clients.Remove(client, true, DisconnectClientTimer);
+		connected_clients.Remove(client, false, DisconnectClientTimer);
 
 		client_spawn_map.Put(client->GetPlayer(), 0);
 
@@ -2887,7 +2865,7 @@ void ZoneServer::RemoveClientImmediately(Client* client) {
 			if (!client->IsZoning() && (guild = client->GetPlayer()->GetGuild()))
 				guild->GuildMemberLogoff(client->GetPlayer());
 
-			connected_clients.Remove(client, true);
+			connected_clients.Remove(client, false);
 
 			LogWrite(ZONE__INFO, 0, "Zone", "Removing connection for client '%s'.", client->GetPlayer()->GetName());
 		}
@@ -6925,4 +6903,13 @@ float ZoneServer::GetFlightPathSpeed(int32 id) {
 		speed = m_flightPaths[id]->speed;
 
 	return speed;
+}
+
+void ZoneServer::QueueClientsForSave() {
+	MClientList.readlock(__FUNCTION__, __LINE__);
+	for (auto const& client : clients) {
+		client->AddToSaveQueue();
+		LogWrite(WORLD__INFO, 0, "Save Queue", "Saving client from Period Save");
+	}
+	MClientList.releasereadlock(__FUNCTION__, __LINE__);
 }

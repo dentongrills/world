@@ -183,6 +183,18 @@ Client::Client(EQStream* ieqs) : pos_update(125), quest_pos_timer(2000), lua_deb
 	should_load_spells = true;
 }
 
+Client::Client(Client* old_client) {
+	SetAccountID(old_client->GetAccountID());
+	SetCharacterID(old_client->GetCharacterID());
+	timestamp_flag = GetTimeStampFlag();
+
+	if (old_client->GetPlayer()) {
+		player = new Player(old_client->GetPlayer());
+		player->SetCharacterID(GetCharacterID());
+		SetCurrentZone(old_client->GetCurrentZone());
+	}
+}
+
 Client::~Client() {
 	if(current_zone && player){
 		if(player->GetGroupMemberInfo() && (player->GetActivityStatus() & ACTIVITY_STATUS_LINKDEAD) > 0)
@@ -495,7 +507,8 @@ void Client::HandlePlayerRevive(int32 point_id)
 
 	player->SetResurrecting(true);
 
-	Save();
+	AddToSaveQueue();
+	LogWrite(WORLD__INFO, 0, "Save Queue", "Saving client from Resurrect");
 
 	SimpleMessage(CHANNEL_COLOR_REVIVE, "You regain consciousness!");
 
@@ -2518,8 +2531,10 @@ bool Client::Process(bool zone_process) {
 	if (!eqs || !eqs->CheckActive())
 		ret = false;
 
-	if(!ret)
-		Save();
+	if(!ret) {
+		AddToSaveQueue();
+		LogWrite(WORLD__INFO, 0, "Save Queue", "Saving client from ClientProcess returning false");
+	}
 
 	return ret;
 }
@@ -2756,7 +2771,9 @@ void Client::Disconnect(bool send_disconnect)
 	if(send_disconnect && getConnection())
 		getConnection()->SendDisconnect(true);
 
-	this->Save();
+	AddToSaveQueue();
+	LogWrite(WORLD__INFO, 0, "Save Queue", "Saving client from Disconnect");
+
 	this->GetPlayer()->WritePlayerStatistics();
 
 	eqs = 0;
@@ -3162,7 +3179,8 @@ void Client::Zone(ZoneServer* new_zone, bool set_coords){
 	}
 
 	LogWrite(CCLIENT__DEBUG, 0, "Client", "%s: Saving Player info...", __FUNCTION__);
-	Save();
+	AddToSaveQueue();
+	LogWrite(WORLD__INFO, 0, "Save Queue", "Saving client from Zone");
 
 	char* new_zone_ip = 0;
 	struct in_addr in;
@@ -3305,7 +3323,7 @@ void Client::DetermineCharacterUpdates ( ) {
 }
 
 void Client::Save(){
-	if(current_zone){
+	if (current_zone) {
 		DetermineCharacterUpdates();
 
 		UpdateCharacterInstances();
@@ -3321,7 +3339,12 @@ void Client::Save(){
 		GetPlayer()->SaveHistory();
 		GetPlayer()->SaveLUAHistory();
 	}
+}
 
+void Client::AddToSaveQueue() {
+	auto client_copy = new Client(this);
+
+	world.AddToSaveQueue(client_copy);
 }
 
 void Client::UpdateCharacterInstances() {

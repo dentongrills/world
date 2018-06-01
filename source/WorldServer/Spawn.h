@@ -919,6 +919,8 @@ public:
 	void SetFollowTarget(Spawn* spawn);
 	Spawn* GetFollowTarget();
 
+	BasicInfoStruct* GetBasicInfo() { return &basic_info; }
+
 	/// <summary>Sets a user defined variable</summary>
 	/// <param name='var'>Variable we are setting</param>
 	/// <param name='val'>Value to set the variable to</param>

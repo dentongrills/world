@@ -114,6 +114,108 @@ Player::Player(){
 	m_playerSpawnQuestsRequired.SetName("Player::player_spawn_quests_required");
 	m_playerSpawnHistoryRequired.SetName("Player::player_spawn_history_required");
 }
+
+Player::Player(Player* old_player) {
+	SetAdventureClass(old_player->GetAdventureClass());
+	SetGender(old_player->GetGender());
+	SetLevel(old_player->GetLevel());
+	SetModelType(old_player->GetModelType());
+	SetRace(old_player->GetRace());
+
+	memcpy(&appearance, &old_player->appearance, sizeof(AppearanceData));
+	memcpy(&features, &old_player->features, sizeof(CharFeatures));
+	memcpy(GetBasicInfo(), old_player->GetBasicInfo(), sizeof(BasicInfoStruct));
+	memcpy(GetInfoStruct(), old_player->GetInfoStruct(), sizeof(InfoStruct));
+
+	info = new PlayerInfo(old_player->GetPlayerInfo(), this);
+
+	for (const auto& instance : old_player->GetCharacterInstances()->GetLockoutInstances()) {
+		GetCharacterInstances()->AddInstance(instance.db_id, instance.instance_id, instance.last_success_timestamp, instance.last_failure_timestamp, instance.success_lockout_time, instance.failure_lockout_time, instance.zone_id, instance.zone_instance_type, instance.zone_name);
+	}
+
+	for (const auto& instance : old_player->GetCharacterInstances()->GetPersistentInstances()) {
+		GetCharacterInstances()->AddInstance(instance.db_id, instance.instance_id, instance.last_success_timestamp, instance.last_failure_timestamp, instance.success_lockout_time, instance.failure_lockout_time, instance.zone_id, instance.zone_instance_type, instance.zone_name);
+	}
+
+	for (const auto& old_ability : *old_player->GetQuickbar()) {
+		QuickBarItem* ability = new QuickBarItem(*old_ability);
+		quickbar_items.push_back(ability);
+	}
+
+	for (const auto& kv : *old_player->GetCollectionList()->GetCollections()) {
+		Collection* collection = new Collection(kv.second);
+		GetCollectionList()->AddCollection(collection);
+	}
+
+	for (const auto& kv : *old_player->GetSkills()->GetAllSkills()) {
+		Skill* skill = new Skill(kv.second);
+		GetSkills()->AddSkill(skill);
+	}
+
+	vector<SpellBookEntry*>* spells = old_player->GetSpellsSaveNeeded();
+
+	if (spells) {
+		for (const auto& old_spell : *spells) {
+			AddSpellBookEntry(old_spell->spell_id, old_spell->tier, old_spell->slot, old_spell->type, old_spell->timer, old_spell->save_needed);
+		}
+	}
+
+	for (const auto& item_kv : *old_player->GetItemList()) {
+		Item* item = new Item(item_kv.second);
+		item->save_needed = item_kv.second->save_needed;
+		item->details.slot_id = item_kv.second->details.slot_id;
+		item->details.inv_slot_id = item_kv.second->details.inv_slot_id;
+		GetPlayerItemList()->AddItem(item);
+	}
+
+	for (const auto& old_item : *old_player->GetEquippedItemList()) {
+		Item* item = new Item(old_item);
+		item->save_needed = old_item->save_needed;
+		GetEquipmentList()->AddItem(old_item->details.slot_id, item);
+	}
+
+	for (const auto& old_item : *old_player->GetPlayerItemList()->GetOverflowItemList()) {
+		Item* item = new Item(old_item);
+		item->save_needed = old_item->save_needed;
+		GetPlayerItemList()->AddOverflowItem(item);
+	}
+
+	for (const auto& kv : *old_player->GetAllLUAHistory()) {
+		LoadLUAHistory(kv.first, new LUAHistory(*kv.second));
+	}
+
+	for (const auto& kv : *old_player->GetAllCharacterHistory()) {
+		int8 type = kv.first;
+		auto subtypes = kv.second;
+
+		for (const auto& kv2 : subtypes) {
+			int8 subtype = kv2.first;
+
+			for (const auto& history : kv2.second) {
+				HistoryData* hd = new HistoryData(*history);
+				LoadPlayerHistory(type, subtype, hd);
+			}
+		}
+	}
+
+	MutexMap<int32, Mail*>* mail_list = old_player->GetMail();
+	MutexMap<int32, Mail*>::iterator itr = mail_list->begin();
+	while (itr.Next()) {
+		Mail* mail = itr->second;
+		mail_list->Put(mail->mail_id, mail);
+	}
+
+	for (const auto &kv : *old_player->GetFactions()->GetFactionValues()) {
+		GetFactions()->SetFactionValue(kv.first, kv.second);
+	}
+
+	completed_quests = *old_player->GetCompletedPlayerQuests();
+	friend_list = *old_player->GetFriends();
+	ignore_list = *old_player->GetIgnoredPlayers();
+	player_quests = *old_player->GetPlayerQuests();
+	quickbar_updated = old_player->UpdateQuickbarNeeded();
+}
+
 Player::~Player(){
 	for(int32 i=0;i<spells.size();i++){
 		safe_delete(spells[i]);
@@ -1940,6 +2042,49 @@ PlayerInfo::PlayerInfo(Player* in_player){
 	boat_y_offset = 0;
 	boat_z_offset = 0;
 	boat_spawn = 0;
+}
+
+PlayerInfo::PlayerInfo(PlayerInfo* in_player_info, Player* in_player) {
+	orig_packet = 0;
+	changes = 0;
+	pet_orig_packet = 0;
+	pet_changes = 0;
+	player = in_player;
+	info_struct = player->GetInfoStruct();
+	strcpy(info_struct->name, player->GetName());
+	info_struct->class1 = classes.GetBaseClass(player->GetAdventureClass());
+	info_struct->class2 = classes.GetSecondaryBaseClass(player->GetAdventureClass());
+	info_struct->class3 = player->GetAdventureClass();
+	info_struct->race = player->GetRace();
+	info_struct->gender = player->GetGender();
+	info_struct->level = player->GetLevel();
+	info_struct->tradeskill_level = player->GetTSLevel(); // JA: added 2011.07.22 to address TODO below
+	info_struct->tradeskill_class1 = classes.GetTSBaseClass(player->GetTradeskillClass());
+	info_struct->tradeskill_class2 = classes.GetSecondaryTSBaseClass(player->GetTradeskillClass());
+	info_struct->tradeskill_class3 = player->GetTradeskillClass();
+
+	LogWrite(MISC__TODO, 1, "TODO", "Fix info_struct.tradeskill_level = player->GetArtLevel();\n\t(%s, function: %s, line #: %i)", __FILE__, __FUNCTION__, __LINE__);
+
+	for(int i=0;i<NUM_SPELL_EFFECTS;i++){
+		info_struct->spell_effects[i].spell_id = 0xFFFFFFFF;
+		info_struct->spell_effects[i].icon = 0xFFFF;
+	}
+	for(int i=0; i<NUM_MAINTAINED_EFFECTS; i++)
+	{
+		info_struct->maintained_effects[i].spell_id = 0xFFFFFFFF;
+		info_struct->maintained_effects[i].icon = 0xFFFF;
+	}
+
+	house_zone_id = in_player_info->GetHouseZoneID();
+	bind_zone_id = in_player_info->GetBindZoneID();
+	bind_x = in_player_info->GetBindZoneX();
+	bind_y = in_player_info->GetBindZoneY();
+	bind_z = in_player_info->GetBindZoneZ();
+	bind_heading = in_player_info->GetBindZoneHeading();
+	boat_x_offset = in_player_info->GetBoatX();
+	boat_y_offset = in_player_info->GetBoatY();
+	boat_z_offset = in_player_info->GetBoatZ();
+	boat_spawn = in_player_info->GetBoatSpawn();
 }
 
 MaintainedEffects* Player::GetFreeMaintainedSpellSlot(){

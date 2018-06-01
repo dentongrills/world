@@ -600,7 +600,8 @@ public:
 	Entity* unknown_spawn;
 
 	void	SendSpawn(Spawn* spawn, Client* client);														// moved from private to public for bots
-	void	SaveClients();
+
+	void QueueClientsForSave();
 
 private:
 	/* Private Functions */
@@ -630,7 +631,6 @@ private:
 	void	CheckSendSpawnToClient(Client* client, bool initial_login = false);									// never used outside zone server
 	bool	SendRemoveSpawn(Client* client, Spawn* spawn, PacketStruct* packet = 0, bool delete_spawn = false);	// never used outside zone server
 	void	CheckRemoveSpawnFromClient(Spawn* spawn);															// never used outside zone server
-	void	SaveClient(Client* client);																			// never used outside zone server
 	void	ProcessFaction(Spawn* spawn, Client* client);														// never used outside zone server
 	void	RegenUpdate();																						// never used outside zone server
 	void	SendCalculatedXP(Player* player, Spawn* victim);													// never used outside zone server, might not be used at all any more

@@ -402,7 +402,7 @@ class ZoneList {
 	void ShutDownZones();
 	void ReloadMail();
 	void ReloadSpawns();
-	void SavePlayers();
+	void QueueClientsForSave();
 
 private:
 	Mutex				MClientList;
@@ -519,6 +519,8 @@ public:
 	vector<PlayerHouse*> GetAllPlayerHouses(int32 char_id);
 	vector<PlayerHouse*> GetAllPlayerHousesByHouseID(int32 house_id);
 
+	void AddToSaveQueue(Client* client);
+
 	PlayerGroupManager* GetGroupManager() { return &m_playerGroupManager; }
 
 private:
@@ -572,5 +574,8 @@ private:
 	map<int16, int16> ka_itemstat_conversion;
 
 	PlayerGroupManager m_playerGroupManager;
+
+	mutex save_clients_mutex;
+	deque<Client*> save_clients;
 };
 #endif

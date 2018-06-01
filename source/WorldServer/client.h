@@ -138,6 +138,7 @@ struct IncomingPaperdollImage {
 class Client {
 public:
 	Client(EQStream* ieqs);
+	Client(Client* old_client);
     ~Client();
 	
 	bool	Process(bool zone_process = false);
@@ -238,6 +239,7 @@ public:
 	int8	GetTimeStampFlag ( ) { return timestamp_flag; }
 	bool	UpdateQuickbarNeeded();
 	void	Save();
+	void AddToSaveQueue();
 	bool	remove_from_list;
 	void	CloseLoot();
 	void	SendPendingLoot(int32 total_coins, Entity* entity);

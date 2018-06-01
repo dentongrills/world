@@ -316,6 +316,7 @@ class PlayerInfo {
 public:
 	~PlayerInfo();
 	PlayerInfo(Player* in_player);
+	PlayerInfo(PlayerInfo* in_player_info, Player* in_player);
 	
 	EQ2Packet* serialize(int16 version);
 	EQ2Packet* serializePet(int16 version);
@@ -382,6 +383,7 @@ private:
 class Player : public Entity{
 public:
 	Player();
+	Player(Player* old_player);
 	virtual ~Player();
 	EQ2Packet* serialize(Player* player, int16 version);
 	//int8	GetMaxArtLevel(){ return info->GetInfo()->max_art_level; }
@@ -820,6 +822,9 @@ public:
 	void SaveLUAHistory();
 	void UpdateLUAHistory(int32 event_id, int32 value, int32 value2);
 	LUAHistory* GetLUAHistory(int32 event_id);
+
+	map<int8, map<int8, vector<HistoryData*>>>* GetAllCharacterHistory() { return &m_characterHistory; }
+	map<int32, LUAHistory*>* GetAllLUAHistory() { return &m_charLuaHistory; }
 
 
 

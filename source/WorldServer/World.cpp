@@ -48,6 +48,7 @@
 #include "LuaInterface.h"
 #include "HeroicOp/HeroicOp.h"
 #include "RaceTypes/RaceTypes.h"
+#include <thread>
 
 MasterQuestList master_quest_list;
 MasterItemList master_item_list;
@@ -87,7 +88,7 @@ extern LoginServer loginserver;
 extern World world;
 extern RuleManager rule_manager;
 
-World::World() : save_time_timer(300000), time_tick_timer(3000), vitality_timer(3600000), player_stats_timer(60000), server_stats_timer(60000), guilds_timer(60000), players_timer(60000), lotto_players_timer(500) {
+World::World() : save_time_timer(300000), time_tick_timer(3000), vitality_timer(3600000), player_stats_timer(60000), server_stats_timer(60000), guilds_timer(60000), players_timer(300000), lotto_players_timer(500) {
 	save_time_timer.Start();
 	time_tick_timer.Start();
 	vitality_timer.Start();
@@ -269,8 +270,11 @@ void World::Process(){
 	if (guilds_timer.Check())
 		SaveGuilds();
 
-	if (players_timer.Check())
-		SavePlayers();
+	if (players_timer.Check()) {
+		zone_list.QueueClientsForSave();
+	}
+
+	SavePlayers();
 
 	if (lotto_players_timer.Check())
 		CheckLottoPlayers();
@@ -341,16 +345,13 @@ void ZoneList::UpdateVitality(float amount)
 	MZoneList.releasereadlock(__FUNCTION__, __LINE__);
 }
 
-void ZoneList::SavePlayers() {
+void ZoneList::QueueClientsForSave() {
 	MZoneList.readlock(__FUNCTION__, __LINE__);
-
-	for (auto zone : zlist) {
-		zone->SaveClients();
+	for (const auto& zone : zlist) {
+		zone->QueueClientsForSave();
 	}
-
 	MZoneList.releasereadlock(__FUNCTION__, __LINE__);
 }
-
 
 void World::WorldTimeTick(){
 	world_time.minute++;
@@ -1722,9 +1723,40 @@ void World::SaveGuilds() {
 	}
 }
 
+void World::AddToSaveQueue(Client* client) {
+	lock_guard<mutex> guard(save_clients_mutex);
+	save_clients.push_front(client);
+
+	LogWrite(WORLD__INFO, 0, "Save Queue", "Adding client to queue (%i), count: %i", client->GetCharacterID(), save_clients.size());
+}
 
 void World::SavePlayers() {
-	zone_list.SavePlayers();
+	lock_guard<mutex> guard(save_clients_mutex);
+	set<int32> character_ids;
+
+	if (save_clients.size() > 0) {
+		auto itr = save_clients.begin();
+
+		while (itr != save_clients.end()) {
+			Client* client = *itr;
+
+			if (character_ids.count(client->GetCharacterID()) == 0) {
+				thread t([&]() {
+					client->Save();
+					//safe_delete(client);
+				});
+
+				t.detach();
+
+				character_ids.insert(client->GetCharacterID());
+				itr = save_clients.erase(itr);
+			} else {
+				++itr;
+			}
+		}
+
+		save_clients.clear();
+	}
 }
 
 void World::PickRandomLottoDigits(int32* digits) {
